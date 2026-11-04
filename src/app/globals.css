@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --surface-2: #f0eee9;
+  --line: #e6e3dc;
+  --text: #171717;
+  --muted: #6d6a63;
+  --brand: #d6312f;
+  --brand-soft: #fbeae9;
+  --good: #1f8a54;
+  --bad: #c2362f;
+  --warn: #b7791f;
+  --c-linkedin: #2f6fb0;
+  --c-instagram: #c13a8c;
+  --c-facebook: #d99a2b;
+  --c-youtube: #7a5cc2;
+  --shadow: 0 1px 2px rgba(23, 23, 23, 0.05), 0 1px 3px rgba(23, 23, 23, 0.04);
+}
+
+.dark {
+  --bg: #0e0f11;
+  --surface: #17181b;
+  --surface-2: #202226;
+  --line: #2b2d33;
+  --text: #ecebe8;
+  --muted: #9b9a95;
+  --brand: #ef5350;
+  --brand-soft: #3a1d1e;
+  --good: #4cc38a;
+  --bad: #f0746c;
+  --warn: #e0a84a;
+  --c-linkedin: #5b9bd8;
+  --c-instagram: #e266b0;
+  --c-facebook: #eab14d;
+  --c-youtube: #a58cf0;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.recharts-text,
+.recharts-cartesian-axis-tick-value {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .print-page {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+}
