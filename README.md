@@ -15,8 +15,8 @@ npm run build    # production build
 |---|---|
 | LinkedIn (7 pages) | Real data from Page analytics exports (`data/linkedin-exports/`). Only the main page's export has been loaded so far; the other six are waiting for admin access. LinkedIn has no free API, so this stays export-based. |
 | YouTube | **Live** via the YouTube Data API v3 (views, likes, comments, subscribers, new videos). Watch time / impressions / CTR still come from the Studio export. |
-| Facebook (Tritorc Group) | Export data works. **Live sync is NOT built yet** — see [Handover: Meta automation](#handover-meta-facebook--instagram-automation). |
-| Instagram (`tritorcgroup`) | Export data works. **Live sync is NOT connected yet** — same handover section. |
+| Facebook (Tritorc Group) | Export data works. **Live sync built** (`src/lib/server/meta-api.ts`), activates when `META_ACCESS_TOKEN` + `META_PAGE_ID` are set; needs the token scopes listed in the Handover section. Not yet tested against the live API. |
+| Instagram (`tritorcgroup`) | Export data works. **Live sync built** (posts, insights, followers, audience demographics); activates when `META_IG_USER_ID` is set. Not yet tested against the live API. |
 | Google Analytics | One CSV upload on the Website page; no API connection yet. |
 
 - With an empty `data/` folder every page falls back to **generated sample data** (`src/lib/sample-data.ts`).

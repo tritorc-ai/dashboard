@@ -9,7 +9,6 @@ import { parseCsv } from "@/lib/csv";
 import { fmtDate, fmtNum } from "@/lib/metrics";
 
 const CONNECTIONS = [
-  { name: "Instagram & Facebook", detail: "Meta Graph API — needs a Meta app, Page ID, Instagram Business ID and a long-lived access token." },
   { name: "LinkedIn Pages", detail: "Community Management API (requires LinkedIn approval). Until then, import the Page analytics export as CSV." },
   { name: "YouTube private analytics", detail: "Watch time, impressions and click-through rate live: YouTube Analytics API with OAuth (the channel owner or a manager approves once). Until then they come from the Studio export." },
   { name: "Website analytics", detail: "Google Analytics 4 — adds website sessions per post using UTM links." },
@@ -95,27 +94,45 @@ export default function SettingsPage() {
               </Button>
             }
           />
-          {(() => {
-            const yt = ds.live?.youtube;
-            return (
-              <div className="flex gap-3 text-sm">
-                <CircleDot className={yt?.syncedAt && !yt.error ? "mt-0.5 size-4 shrink-0 text-good" : "mt-0.5 size-4 shrink-0 text-muted"} />
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-2 font-medium">
-                    YouTube
-                    <Badge tone={yt?.error ? "bad" : yt?.syncedAt ? "good" : "neutral"}>{yt?.error ? "Error" : yt?.syncedAt ? "Connected" : "Not connected"}</Badge>
+          <div className="space-y-4">
+            {(
+              [
+                { key: "youtube", name: "YouTube", unit: "videos", detail: "Views, likes, comments and subscribers are live (subscribers are rounded by YouTube)." },
+                { key: "facebook", name: "Facebook", unit: "posts", detail: "Reactions, comments, shares, views, viewers, clicks and followers are live. Metrics Meta refuses show as N/A." },
+                { key: "instagram", name: "Instagram", unit: "posts", detail: "Likes, comments, shares, saves, views, reach, followers and audience demographics are live. Metrics Meta refuses show as N/A." },
+              ] as const
+            ).map(({ key, name, unit, detail }) => {
+              const l = ds.live?.[key];
+              return (
+                <div key={key} className="flex gap-3 text-sm">
+                  <CircleDot className={l?.syncedAt && !l.error ? "mt-0.5 size-4 shrink-0 text-good" : "mt-0.5 size-4 shrink-0 text-muted"} />
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 font-medium">
+                      {name}
+                      <Badge tone={l?.error ? "bad" : l?.syncedAt ? "good" : "neutral"}>{l?.error ? "Error" : l?.syncedAt ? "Connected" : "Not connected"}</Badge>
+                    </div>
+                    {l?.syncedAt && (
+                      <p className="text-muted">
+                        {l.items} {unit} · last synced {new Date(l.syncedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}. {detail}
+                      </p>
+                    )}
+                    {l?.error && <p role="alert" className="text-bad">{l.error}</p>}
+                    {l?.warnings?.length ? (
+                      <details className="text-muted">
+                        <summary className="cursor-pointer">{l.warnings.length} metric{l.warnings.length > 1 ? "s" : ""} unavailable</summary>
+                        <ul className="mt-1 list-disc pl-5">
+                          {l.warnings.map((w) => (
+                            <li key={w}>{w}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                    {l?.note && <p className="text-muted">{l.note}</p>}
                   </div>
-                  {yt?.syncedAt && (
-                    <p className="text-muted">
-                      {yt.items} videos · last synced {new Date(yt.syncedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}. Views, likes, comments and subscribers are live (subscribers are rounded by YouTube).
-                    </p>
-                  )}
-                  {yt?.error && <p role="alert" className="text-bad">{yt.error}</p>}
-                  {yt?.note && <p className="text-muted">{yt.note}</p>}
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })}
+          </div>
         </Card>
 
         <Card>
