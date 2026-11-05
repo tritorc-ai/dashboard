@@ -42,3 +42,6 @@ next-env.d.ts
 
 # exported analytics files (business data, never commit)
 /data/
+
+# but keep the template of required variables
+!.env.example
