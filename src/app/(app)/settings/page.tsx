@@ -12,7 +12,6 @@ const CONNECTIONS = [
   { name: "Instagram & Facebook", detail: "Meta Graph API — needs a Meta app, Page ID, Instagram Business ID and a long-lived access token." },
   { name: "LinkedIn Pages", detail: "Community Management API (requires LinkedIn approval). Until then, import the Page analytics export as CSV." },
   { name: "YouTube private analytics", detail: "Watch time, impressions and click-through rate live: YouTube Analytics API with OAuth (the channel owner or a manager approves once). Until then they come from the Studio export." },
-  { name: "Website analytics", detail: "Google Analytics 4 — adds website sessions per post using UTM links." },
 ];
 
 export default function SettingsPage() {
@@ -95,27 +94,34 @@ export default function SettingsPage() {
               </Button>
             }
           />
-          {(() => {
-            const yt = ds.live?.youtube;
-            return (
-              <div className="flex gap-3 text-sm">
-                <CircleDot className={yt?.syncedAt && !yt.error ? "mt-0.5 size-4 shrink-0 text-good" : "mt-0.5 size-4 shrink-0 text-muted"} />
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-2 font-medium">
-                    YouTube
-                    <Badge tone={yt?.error ? "bad" : yt?.syncedAt ? "good" : "neutral"}>{yt?.error ? "Error" : yt?.syncedAt ? "Connected" : "Not connected"}</Badge>
+          <div className="space-y-4">
+            {(
+              [
+                { key: "youtube", name: "YouTube", unit: "videos", detail: "Views, likes, comments and subscribers are live (subscribers are rounded by YouTube)." },
+                { key: "ga4", name: "Google Analytics (GA4)", unit: "traffic rows", detail: "Social traffic from the last 90 days, with enquiries counted from thank-you pages." },
+              ] as const
+            ).map(({ key, name, unit, detail }) => {
+              const c = ds.live?.[key];
+              return (
+                <div key={key} className="flex gap-3 text-sm">
+                  <CircleDot className={c?.syncedAt && !c.error ? "mt-0.5 size-4 shrink-0 text-good" : "mt-0.5 size-4 shrink-0 text-muted"} />
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 font-medium">
+                      {name}
+                      <Badge tone={c?.error ? "bad" : c?.syncedAt ? "good" : "neutral"}>{c?.error ? "Error" : c?.syncedAt ? "Connected" : "Not connected"}</Badge>
+                    </div>
+                    {c?.syncedAt && (
+                      <p className="text-muted">
+                        {fmtNum(c.items ?? 0)} {unit} · last synced {new Date(c.syncedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}. {detail}
+                      </p>
+                    )}
+                    {c?.error && <p role="alert" className="text-bad">{c.error}</p>}
+                    {c?.note && <p className="text-muted">{c.note}</p>}
                   </div>
-                  {yt?.syncedAt && (
-                    <p className="text-muted">
-                      {yt.items} videos · last synced {new Date(yt.syncedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}. Views, likes, comments and subscribers are live (subscribers are rounded by YouTube).
-                    </p>
-                  )}
-                  {yt?.error && <p role="alert" className="text-bad">{yt.error}</p>}
-                  {yt?.note && <p className="text-muted">{yt.note}</p>}
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })}
+          </div>
         </Card>
 
         <Card>

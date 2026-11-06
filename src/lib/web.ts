@@ -2,6 +2,7 @@ import type { Platform, WebRow } from "./types";
 
 export type Channel =
   | "Social"
+  | "Paid social"
   | "Organic search"
   | "Paid search"
   | "Email"
@@ -9,7 +10,7 @@ export type Channel =
   | "Direct"
   | "Other";
 
-export const CHANNELS: Channel[] = ["Social", "Organic search", "Paid search", "Email", "Referral", "Direct", "Other"];
+export const CHANNELS: Channel[] = ["Social", "Paid social", "Organic search", "Paid search", "Email", "Referral", "Direct", "Other"];
 
 const SOCIAL_MEDIUMS = new Set(["organic_social", "social", "paid_social", "social-network", "sm"]);
 
@@ -26,7 +27,10 @@ export function socialPlatform(source: string): Platform | null {
 export function classifyChannel(r: Pick<WebRow, "source" | "medium">): Channel {
   const m = r.medium.toLowerCase();
   const s = r.source.toLowerCase();
-  if (socialPlatform(s) || SOCIAL_MEDIUMS.has(m)) return "Social";
+  // social platforms (including Meta ads, whose source is "meta" and medium e.g. "facebook-lead-gen")
+  if (socialPlatform(s) || socialPlatform(m) || SOCIAL_MEDIUMS.has(m) || s === "meta") {
+    return /paid|cpc|ppc|lead|\bads?\b/.test(m) ? "Paid social" : "Social";
+  }
   if (/cpc|ppc|paid/.test(m)) return "Paid search";
   if (m === "organic") return "Organic search";
   if (m === "email" || s === "email" || s === "newsletter") return "Email";
@@ -35,7 +39,21 @@ export function classifyChannel(r: Pick<WebRow, "source" | "medium">): Channel {
   return "Other";
 }
 
-export const isSocial = (r: Pick<WebRow, "source" | "medium">) => classifyChannel(r) === "Social";
+/**
+ * Traffic that came from a social platform, organic or paid. This is the only website traffic the
+ * dashboard analyses — direct, search, referral and email visits are ignored.
+ */
+export const isSocial = (r: Pick<WebRow, "source" | "medium">) => {
+  const c = classifyChannel(r);
+  return c === "Social" || c === "Paid social";
+};
+
+export const isPaidSocial = (r: Pick<WebRow, "source" | "medium">) => classifyChannel(r) === "Paid social";
+
+/** The platform a social row belongs to (Meta ads with no platform in the medium count as Facebook). */
+export function rowPlatform(r: Pick<WebRow, "source" | "medium">): Platform | null {
+  return socialPlatform(r.source) ?? socialPlatform(r.medium) ?? (r.source.toLowerCase() === "meta" ? "Facebook" : null);
+}
 
 /** Column order of the single GA4 CSV — also the downloadable template. */
 export const GA_COLUMNS = [

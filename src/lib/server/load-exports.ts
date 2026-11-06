@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as XLSX from "xlsx";
 import { parseCsv } from "../csv";
+import { parseGaCsv } from "../import/ga";
 import type {
   Account,
   AudienceRow,
@@ -12,6 +13,7 @@ import type {
   Platform,
   Post,
   Target,
+  WebRow,
 } from "../types";
 
 /**
@@ -21,6 +23,24 @@ import type {
  */
 
 const DATA_DIR = path.join(process.cwd(), "data");
+
+/**
+ * Google Analytics (GA4) exports in data/ga4-exports/*.csv — the same CSV the Website page accepts.
+ * Files are applied in name order; a later file replaces rows for the dates it covers, so a newer
+ * export can overlap an older one.
+ */
+function loadGa4Exports(): WebRow[] {
+  const dir = path.join(DATA_DIR, "ga4-exports");
+  if (!fs.existsSync(dir)) return [];
+  let rows: WebRow[] = [];
+  for (const name of fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith(".csv")).sort()) {
+    const parsed = parseGaCsv(fs.readFileSync(path.join(dir, name), "utf8"));
+    if (!parsed.rows.length || !parsed.from || !parsed.to) continue;
+    const { from, to } = parsed;
+    rows = rows.filter((r) => r.date < from || r.date > to).concat(parsed.rows);
+  }
+  return rows;
+}
 
 interface AccountDef {
   platform: Platform;
@@ -517,7 +537,7 @@ export function loadFromExports(): Dataset | null {
     followers,
     campaigns,
     targets,
-    web: [],
+    web: loadGa4Exports(),
     audience,
     coverage,
     updatedAt: new Date(mtime).toISOString(),

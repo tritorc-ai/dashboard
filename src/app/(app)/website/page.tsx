@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Download, FileUp, Trash2 } from "lucide-react";
-import { Badge, BarList, Button, Card, CardHeader, Delta, Empty, PageHeader, PlatformTag, Segmented } from "@/components/ui";
+import { Badge, BarList, Button, Card, CardHeader, Delta, Empty, PageHeader, PlatformTag } from "@/components/ui";
 import { TrendChart } from "@/components/charts";
 import { PageLoading } from "@/components/loading";
 import { usePostDrawer } from "@/components/post-drawer";
@@ -11,7 +11,7 @@ import { useDashboard } from "@/lib/use-dashboard";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { parseGaCsv, type GaParseResult } from "@/lib/import/ga";
 import { delta, fmtCompact, fmtDate, fmtNum, fmtPct, groupBy, sum, timeBuckets, ymd } from "@/lib/metrics";
-import { CHANNELS, classifyChannel, GA_COLUMNS, GA_TEMPLATE_ROWS, isSocial, socialPlatform } from "@/lib/web";
+import { CHANNELS, classifyChannel, GA_COLUMNS, GA_TEMPLATE_ROWS, isPaidSocial, isSocial, rowPlatform } from "@/lib/web";
 import { PLATFORM_COLOR } from "@/lib/filters";
 import type { WebRow } from "@/lib/types";
 
@@ -37,7 +37,6 @@ export default function WebsitePage() {
   const { ds, d, filters } = useDashboard();
   const { importWeb, clearWebImport, webImported, webPersisted } = useData();
   const drawer = usePostDrawer();
-  const [pagesScope, setPagesScope] = useState<"all" | "social">("all");
   const [parsed, setParsed] = useState<{ name: string; result: GaParseResult } | null>(null);
   const [msg, setMsg] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -46,27 +45,27 @@ export default function WebsitePage() {
     if (!ds || !d) return null;
     const { from, to, prevFrom, prevTo } = d.range;
     const inRange = (r: WebRow, a: Date, b: Date) => r.date >= ymd(a) && r.date <= ymd(b);
-    // the platform filter narrows to that platform's social traffic; other filters don't apply to website data
-    const scoped = ds.web.filter((r) => filters.platform === "all" || socialPlatform(r.source) === filters.platform);
+    // only social traffic (Meta, LinkedIn, YouTube) is analysed; the platform filter narrows it further.
+    // Other filters don't apply to website data.
+    const scoped = ds.web.filter((r) => isSocial(r) && (filters.platform === "all" || rowPlatform(r) === filters.platform));
     const cur = scoped.filter((r) => inRange(r, from, to));
     const prev = filters.days ? scoped.filter((r) => inRange(r, prevFrom, prevTo)) : [];
-    const social = cur.filter(isSocial);
-    const prevSocial = prev.filter(isSocial);
+    const social = cur;
 
     const buckets = timeBuckets(from, to);
     const trend = buckets.map((b) => {
       const a = ymd(b.start);
       const z = ymd(b.end);
       const rows = cur.filter((r) => r.date >= a && r.date <= z);
-      return { label: b.label, All: sessionsOf(rows), Social: sessionsOf(rows.filter(isSocial)) };
+      return { label: b.label, Organic: sessionsOf(rows.filter((r) => !isPaidSocial(r))), Paid: sessionsOf(rows.filter(isPaidSocial)) };
     });
 
-    const byChannel = CHANNELS.map((c) => {
+    const byChannel = CHANNELS.filter((c) => c === "Social" || c === "Paid social").map((c) => {
       const rows = cur.filter((r) => classifyChannel(r) === c);
-      return { channel: c, sessions: sessionsOf(rows), rate: rate(rows), keys: sum(rows, (x) => x.keyEvents) };
+      return { channel: c === "Social" ? "Organic social" : "Paid social", sessions: sessionsOf(rows), rate: rate(rows), keys: sum(rows, (x) => x.keyEvents) };
     }).filter((x) => x.sessions > 0);
 
-    const byPlatform = [...groupBy(social, (r) => socialPlatform(r.source) ?? r.source)].map(([name, rows]) => ({
+    const byPlatform = [...groupBy(social, (r) => rowPlatform(r) ?? r.source)].map(([name, rows]) => ({
       name,
       sessions: sessionsOf(rows),
       rate: rate(rows),
@@ -83,24 +82,27 @@ export default function WebsitePage() {
     const taggedSessions = sessionsOf(social.filter((r) => r.content));
     const matchedSessions = sum(matched, (x) => x.sessions);
 
-    const pageRows = pagesScope === "social" ? social : cur;
-    const pages = [...groupBy(pageRows, (r) => r.landingPage)]
+    const pages = [...groupBy(cur, (r) => r.landingPage)]
       .map(([page, rows]) => ({ page, sessions: sessionsOf(rows), rate: rate(rows), keys: sum(rows, (x) => x.keyEvents) }))
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 10);
 
     const campaigns = [...groupBy(cur.filter((r) => r.campaign), (r) => r.campaign)]
-      .map(([c, rows]) => ({ c, sessions: sessionsOf(rows), keys: sum(rows, (x) => x.keyEvents), social: sessionsOf(rows.filter(isSocial)) }))
+      .map(([c, rows]) => ({ c, sessions: sessionsOf(rows), keys: sum(rows, (x) => x.keyEvents), paid: sessionsOf(rows.filter(isPaidSocial)) }))
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 8);
 
-    return { cur, prev, social, prevSocial, trend, byChannel, byPlatform, matched, taggedSessions, matchedSessions, pages, campaigns };
-  }, [ds, d, filters.platform, filters.days, pagesScope]);
+    // an export without the landing page column reports every row as "/"
+    const hasLanding = cur.some((r) => r.landingPage !== "/");
+    return { cur, prev, social, trend, byChannel, byPlatform, matched, taggedSessions, matchedSessions, pages, campaigns, hasLanding };
+  }, [ds, d, filters.platform, filters.days]);
 
   if (!ds || !d || !view) return <PageLoading />;
 
-  const { cur, prev, social, prevSocial } = view;
+  const { cur, prev, social } = view;
   const total = sessionsOf(cur);
+  const paid = sessionsOf(cur.filter(isPaidSocial));
+  const prevPaid = sessionsOf(prev.filter(isPaidSocial));
   const dates = ds.web.length ? [ds.web.reduce((m, r) => (r.date < m ? r.date : m), "9999"), ds.web.reduce((m, r) => (r.date > m ? r.date : m), "0000")] : null;
 
   const onFile = async (f: File | undefined) => {
@@ -126,8 +128,8 @@ export default function WebsitePage() {
   return (
     <>
       <PageHeader
-        title="Website traffic (Google Analytics)"
-        description="Website visits and enquiries, and how much of it comes from your posts. Posts are matched through the utm_content value in their links."
+        title="Website traffic from social (Google Analytics)"
+        description="Website visits that came from Facebook, Instagram, LinkedIn and YouTube — organic posts and paid ads. Other traffic (direct, search, referral, email) is left out on purpose. Posts are matched through the utm_content value in their links."
         actions={
           <Button onClick={() => downloadCsv("tritorc-ga4-template.csv", toCsv([...GA_COLUMNS], GA_TEMPLATE_ROWS))}>
             <Download className="size-4" /> CSV template
@@ -136,7 +138,20 @@ export default function WebsitePage() {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted">
-        <Badge tone={webImported ? "good" : ds.web.length ? "warn" : "neutral"}>{webImported ? "Imported GA4 data" : ds.web.length ? "Sample data" : "No GA4 data yet"}</Badge>
+        {(() => {
+          const ga = ds.live?.ga4;
+          const [tone, text] = webImported
+            ? (["good", "Imported GA4 data"] as const)
+            : ga?.syncedAt && !ga.error
+              ? (["good", "Live from GA4"] as const)
+              : ds.source === "exports" && ds.web.length
+                ? (["good", "GA4 export files"] as const)
+                : ds.web.length
+                  ? (["warn", "Sample data"] as const)
+                  : (["neutral", "No GA4 data yet"] as const);
+          return <Badge tone={tone}>{text}</Badge>;
+        })()}
+        {ds.live?.ga4?.error && <span role="alert" className="text-bad">GA4 sync problem: {ds.live.ga4.error}</span>}
         {dates && (
           <span>
             Data covers {fmtDate(dates[0])} – {fmtDate(dates[1])}
@@ -150,35 +165,35 @@ export default function WebsitePage() {
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            <Kpi label="Sessions" value={fmtNum(total)} change={delta(total, filters.days ? sessionsOf(prev) : null)} />
-            <Kpi label="From social" value={fmtNum(sessionsOf(social))} change={delta(sessionsOf(social), filters.days ? sessionsOf(prevSocial) : null)} note={`${fmtPct(total ? (sessionsOf(social) / total) * 100 : null, 1)} of all sessions`} />
+            <Kpi label="Social sessions" value={fmtNum(total)} change={delta(total, filters.days ? sessionsOf(prev) : null)} note="organic + paid" />
+            <Kpi label="From paid ads" value={fmtNum(paid)} change={delta(paid, filters.days ? prevPaid : null)} note={`${fmtPct(total ? (paid / total) * 100 : null, 1)} of social sessions`} />
             <Kpi label="New users" value={fmtNum(sum(cur, (r) => r.newUsers))} change={delta(sum(cur, (r) => r.newUsers), filters.days ? sum(prev, (r) => r.newUsers) : null)} />
             <Kpi label="Engagement rate" value={fmtPct(rate(cur), 1)} change={delta(rate(cur), filters.days ? rate(prev) : null)} note="engaged sessions ÷ sessions" />
             <Kpi label="Avg engagement time" value={fmtSecs(avgSecs(cur))} change={delta(avgSecs(cur), filters.days ? avgSecs(prev) : null)} note="per session" />
-            <Kpi label="Key events (enquiries)" value={fmtNum(sum(cur, (r) => r.keyEvents))} change={delta(sum(cur, (r) => r.keyEvents), filters.days ? sum(prev, (r) => r.keyEvents) : null)} note={`${fmtNum(sum(social, (r) => r.keyEvents))} from social`} />
+            <Kpi label="Key events (enquiries)" value={fmtNum(sum(cur, (r) => r.keyEvents))} change={delta(sum(cur, (r) => r.keyEvents), filters.days ? sum(prev, (r) => r.keyEvents) : null)} note={`${fmtNum(sum(cur.filter((r) => !isPaidSocial(r)), (r) => r.keyEvents))} from organic posts`} />
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-3">
             <Card className="xl:col-span-2">
-              <CardHeader title="Sessions over time" hint="All traffic vs traffic from social posts" />
+              <CardHeader title="Social sessions over time" hint="Organic posts vs paid ads" />
               <TrendChart
                 data={view.trend}
                 series={[
-                  { key: "All", label: "All traffic", color: "var(--muted)" },
-                  { key: "Social", label: "From social", color: "var(--brand)" },
+                  { key: "Organic", label: "Organic social", color: "var(--brand)" },
+                  { key: "Paid", label: "Paid social", color: "var(--muted)" },
                 ]}
                 area
               />
             </Card>
             <Card>
-              <CardHeader title="Sessions by channel" />
+              <CardHeader title="Organic vs paid" hint="Social sessions" />
               <BarList items={view.byChannel.map((c) => ({ label: c.channel, value: c.sessions }))} format={fmtCompact} />
             </Card>
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <Card className="overflow-x-auto">
-              <CardHeader title="Traffic by channel" />
+              <CardHeader title="Organic vs paid social" />
               <table className="w-full min-w-[420px] text-sm">
                 <thead>
                   <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -239,7 +254,7 @@ export default function WebsitePage() {
               <CardHeader
                 title="Top posts by website visits"
                 hint="Matched from utm_content = post ID"
-                action={<Badge tone={view.taggedSessions && view.matchedSessions / view.taggedSessions > 0.8 ? "good" : "warn"}>{sessionsOf(social) ? `${Math.round((view.taggedSessions / sessionsOf(social)) * 100)}% of social visits are post-tagged` : "No social visits"}</Badge>}
+                action={<Badge tone={sessionsOf(social) && view.matchedSessions / sessionsOf(social) > 0.8 ? "good" : "warn"}>{sessionsOf(social) ? `${Math.round((view.matchedSessions / sessionsOf(social)) * 100)}% of social visits tied to a post` : "No social visits"}</Badge>}
               />
               {view.matched.length ? (
                 <table className="w-full min-w-[560px] text-sm">
@@ -277,20 +292,10 @@ export default function WebsitePage() {
             </Card>
 
             <Card className="overflow-x-auto">
-              <CardHeader
-                title="Top landing pages"
-                action={
-                  <Segmented
-                    label="Landing page scope"
-                    value={pagesScope}
-                    onChange={setPagesScope}
-                    options={[
-                      { value: "all", label: "All traffic" },
-                      { value: "social", label: "Social only" },
-                    ]}
-                  />
-                }
-              />
+              <CardHeader title="Top landing pages" hint="Where social visitors land" />
+              {!view.hasLanding ? (
+                <Empty>This GA4 export has no landing page column, so pages can’t be listed. Add “Landing page” to the GA4 report (or use the live GA4 connection) to see them.</Empty>
+              ) : (
               <table className="w-full min-w-[380px] text-sm">
                 <thead>
                   <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -313,17 +318,18 @@ export default function WebsitePage() {
                   ))}
                 </tbody>
               </table>
+              )}
             </Card>
 
             <Card className="overflow-x-auto">
-              <CardHeader title="Campaigns (utm_campaign)" hint="All sources" />
+              <CardHeader title="Campaigns (utm_campaign)" hint="Social traffic only" />
               {view.campaigns.length ? (
                 <table className="w-full min-w-[380px] text-sm">
                   <thead>
                     <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
                       <th className="py-1.5 font-medium">Campaign</th>
                       <th className="py-1.5 text-right font-medium">Sessions</th>
-                      <th className="py-1.5 text-right font-medium">From social</th>
+                      <th className="py-1.5 text-right font-medium">Paid ads</th>
                       <th className="py-1.5 text-right font-medium">Key events</th>
                     </tr>
                   </thead>
@@ -334,7 +340,7 @@ export default function WebsitePage() {
                           {c.c}
                         </td>
                         <td className="py-2 text-right">{fmtNum(c.sessions)}</td>
-                        <td className="py-2 text-right">{fmtNum(c.social)}</td>
+                        <td className="py-2 text-right">{fmtNum(c.paid)}</td>
                         <td className="py-2 text-right">{fmtNum(c.keys)}</td>
                       </tr>
                     ))}
@@ -395,7 +401,7 @@ export default function WebsitePage() {
           <div className="text-sm">
             <h4 className="font-semibold">The single CSV</h4>
             <p className="mt-1 text-muted">
-              One row per day × source × medium × campaign × content × landing page. Website totals are all rows; traffic from posts is the rows from social sources, tied to a post by <code className="font-mono text-xs">content</code> = the post’s ID.
+              One row per day × source × medium × campaign × content × landing page. Include all traffic in the export if you like — only rows from social sources (Facebook, Instagram, LinkedIn, YouTube, Meta ads) are analysed, and each is tied to a post by <code className="font-mono text-xs">content</code> = the post’s ID.
             </p>
             <div className="mt-2 overflow-x-auto rounded-lg border border-line">
               <table className="w-full text-xs">

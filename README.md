@@ -17,7 +17,7 @@ npm run build    # production build
 | YouTube | **Live** via the YouTube Data API v3 (views, likes, comments, subscribers, new videos). Watch time / impressions / CTR still come from the Studio export. |
 | Facebook (Tritorc Group) | Export data works. **Live sync is NOT built yet** — see [Handover: Meta automation](#handover-meta-facebook--instagram-automation). |
 | Instagram (`tritorcgroup`) | Export data works. **Live sync is NOT connected yet** — same handover section. |
-| Google Analytics | One CSV upload on the Website page; no API connection yet. |
+| Google Analytics (GA4) | **Live** via the GA4 Data API (read-only service account, last 90 days, social traffic only, enquiries = sessions that viewed a `thank-you` page). Falls back to the CSV files in `data/ga4-exports/` or a CSV uploaded on the Website page. Code: `src/lib/server/ga4-api.ts`. |
 
 - With an empty `data/` folder every page falls back to **generated sample data** (`src/lib/sample-data.ts`).
 - Tags, enquiries, notes, campaigns, targets and planned posts are saved in the browser's localStorage until a shared database (Supabase) is added.
@@ -42,7 +42,7 @@ day × source × medium × campaign × content × landing page:
 
 `date, source, medium, campaign, content, landing_page, sessions, new_users, engaged_sessions, avg_engagement_seconds, key_events`
 
-- Website totals = all rows. Traffic from posts = rows from social sources (`src/lib/web.ts`), tied to a post when `content` (utm_content) equals the post ID.
+- **Only social traffic is analysed** (Facebook, Instagram, LinkedIn, YouTube — organic posts and paid ads, e.g. `meta / facebook-lead-gen`). Direct, search, referral and email rows are loaded but ignored by the page (`isSocial` in `src/lib/web.ts`). A row is tied to a post when `content` (utm_content) equals the post ID.
 - GA4's own export names are accepted (`Session source / medium`, `YYYYMMDD` dates, `m:ss` durations, `#` comment lines) — see `src/lib/import/ga.ts`.
 - Importing replaces existing rows for the dates in the file, so a newer export can be uploaded over an older one.
 
@@ -55,6 +55,7 @@ Drop in newer exports and refresh — nothing else to change. If `data/` is empt
 | `data/linkedin-exports/` | `<page>-content_…xls`, `<page>-followers_…xls` | page slugs: `tritorc-main`, `peru`, `africa`, `in-action`, `inc`, `precomtec`, `ozat` |
 | `data/meta-exports/` | `instagram-…posts_….csv`, `facebook-…posts_….csv`, `…-audience-demographics_….csv` | one Facebook page only (Tritorc Group) |
 | `data/youtube-exports/<export>/` | the unzipped YouTube Studio export (`Table data.csv`, `Chart data.csv`) | |
+| `data/ga4-exports/` | `*.csv` from GA4 Explore (Free form) | Dimensions: Date, Session campaign, Session source / medium, Session manual ad content (Landing page optional). Metrics: Sessions, New users, Engaged sessions, Avg engagement time per session, Key events. Set **Nested rows = No** and keep each file under 500 rows (export in 14-day chunks); a later file replaces the dates it covers. |
 | `data/accounts.json` | current follower counts | edit when they change; replaced by the APIs later |
 
 Rules applied: LinkedIn has no reach, so its engagement rate uses impressions; Facebook "reach" is Meta's *viewers*

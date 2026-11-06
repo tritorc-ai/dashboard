@@ -30,9 +30,10 @@ export interface GaParseResult {
   to: string | null;
 }
 
-const clean = (v: string | undefined) => {
+export const gaBlank = (v: string | undefined) => {
   const s = (v ?? "").trim();
-  return s === "(not set)" ? "" : s;
+  // GA4's placeholders for "no campaign" are not real campaign names
+  return /^\((not set|direct|organic|referral|none|data not available)\)$/i.test(s) ? "" : s;
 };
 
 function toNumber(v: string | undefined): number | null {
@@ -117,8 +118,8 @@ export function parseGaCsv(text: string): GaParseResult {
       date,
       source: source.toLowerCase(),
       medium: medium.toLowerCase(),
-      campaign: clean(get(r, "campaign")),
-      content: clean(get(r, "content")),
+      campaign: gaBlank(get(r, "campaign")),
+      content: gaBlank(get(r, "content")),
       landingPage: (get(r, "landing_page") ?? "").trim() || "/",
       sessions,
       newUsers: newUsers ?? 0,

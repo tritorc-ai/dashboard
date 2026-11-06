@@ -1,5 +1,6 @@
 import type { Account, Dataset, FollowerPoint, Post } from "../types";
 import { loadFromExports } from "./load-exports";
+import { fetchGa4 } from "./ga4-api";
 import { fetchYouTube } from "./youtube-api";
 
 /**
@@ -11,7 +12,18 @@ export async function buildDataset(opts: { force?: boolean } = {}): Promise<Data
   if (!base) return null;
 
   const live: NonNullable<Dataset["live"]> = {};
-  const yt = await fetchYouTube(opts.force);
+  const [yt, ga] = await Promise.all([fetchYouTube(opts.force), fetchGa4(opts.force)]);
+
+  // GA4 live traffic replaces the CSV rows for the dates it covers; older CSV rows stay
+  if (!ga.configured) {
+    live.ga4 = { note: "Not connected — using the CSV files in data/ga4-exports. Add GA4_PROPERTY_ID and a service-account key to .env.local" };
+  } else {
+    live.ga4 = { syncedAt: ga.data?.syncedAt, error: ga.error, items: ga.data?.rows.length };
+    if (ga.data?.rows.length) {
+      const { from, to, rows } = ga.data;
+      base.web = base.web.filter((r) => r.date < from || r.date > to).concat(rows);
+    }
+  }
 
   if (!yt.configured) {
     live.youtube = { note: "Not connected — add YOUTUBE_API_KEY to .env.local" };
