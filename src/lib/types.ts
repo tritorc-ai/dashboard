@@ -137,7 +137,7 @@ export interface Dataset {
   /** First/last day each account's reports cover (absent for sample data) */
   coverage?: Record<string, { from: string; to: string }>;
   /** Status of live API connections, by source */
-  live?: Record<string, { syncedAt?: string; error?: string; note?: string; items?: number }>;
+  live?: Record<string, { syncedAt?: string; error?: string; note?: string; items?: number; warnings?: string[] }>;
   /** Last time the dataset was refreshed from its source */
   updatedAt: string;
   source: "sample" | "exports" | "database";

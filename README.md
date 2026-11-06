@@ -15,8 +15,8 @@ npm run build    # production build
 |---|---|
 | LinkedIn (7 pages) | Real data from Page analytics exports (`data/linkedin-exports/`). Only the main page's export has been loaded so far; the other six are waiting for admin access. LinkedIn has no free API, so this stays export-based. |
 | YouTube | **Live** via the YouTube Data API v3 (views, likes, comments, subscribers, new videos). Watch time / impressions / CTR still come from the Studio export. |
-| Facebook (Tritorc Group) | Export data works. **Live sync is NOT built yet** — see [Handover: Meta automation](#handover-meta-facebook--instagram-automation). |
-| Instagram (`tritorcgroup`) | Export data works. **Live sync is NOT connected yet** — same handover section. |
+| Facebook (Tritorc Group) | Export data works. **Live sync built** (`src/lib/server/meta-api.ts`), activates when `META_ACCESS_TOKEN` + `META_PAGE_ID` are set; needs the token scopes listed in the Handover section. Tested 6 Nov 2026: the API is reached, but the current Page token is refused (see below). |
+| Instagram (`tritorcgroup`) | Export data works. **Live sync built** (posts, insights, followers, audience demographics); activates when `META_IG_USER_ID` is set (not set yet). |
 | Google Analytics (GA4) | **Live** via the GA4 Data API (read-only service account, last 90 days, social traffic only, enquiries = sessions that viewed a `thank-you` page). Falls back to the CSV files in `data/ga4-exports/` or a CSV uploaded on the Website page. Code: `src/lib/server/ga4-api.ts`. |
 
 - With an empty `data/` folder every page falls back to **generated sample data** (`src/lib/sample-data.ts`).
@@ -89,6 +89,13 @@ without anyone downloading a Business Suite export. The Settings → *Live conne
   used so far belongs to someone outside the organisation, so Meta's "Verify your session" step cannot be completed
   and the portfolio-level permissions cannot be granted. `/me/accounts` is empty for the same reason; the page only
   worked by requesting it directly by ID (`GET /{page-id}?fields=access_token`).
+
+### Status check, 6 Nov 2026
+The sync code is merged and runs, but the token in use is still the old Page token. `debug_token` shows it is valid and never
+expires, but its scopes are only `pages_show_list` and `pages_read_engagement`, so posts fail with
+*(#10) This endpoint requires the 'pages_read_user_content' permission*. `META_IG_USER_ID` is also empty.
+The only thing left for Meta is the access steps below: a System User token with the full scope list, then the Instagram ID.
+No code change should be needed; the dashboard keeps working from the exports until then.
 
 ### What you need to do first (access, not code)
 1. Someone who is already **admin of the Tritorc Group business portfolio** adds you, using your own real Facebook

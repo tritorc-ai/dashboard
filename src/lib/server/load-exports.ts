@@ -530,7 +530,8 @@ export function loadFromExports(): Dataset | null {
     coverage[id] = { from: REPORT_START[id] ?? own[0] ?? "1970-01-01", to: own.at(-1) ?? "" };
   }
 
-  const mtime = Math.max(...files.map((f) => fs.statSync(f).mtimeMs), fs.statSync(cfgPath).mtimeMs);
+  // accounts.json is optional (follower counts); don't fail when it's absent
+  const mtime = Math.max(...files.map((f) => fs.statSync(f).mtimeMs), fs.existsSync(cfgPath) ? fs.statSync(cfgPath).mtimeMs : 0);
   return {
     accounts,
     posts: posts.sort((a, b) => a.publishedAt.localeCompare(b.publishedAt)),

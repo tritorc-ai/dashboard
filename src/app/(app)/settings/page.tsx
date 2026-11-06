@@ -9,7 +9,6 @@ import { parseCsv } from "@/lib/csv";
 import { fmtDate, fmtNum } from "@/lib/metrics";
 
 const CONNECTIONS = [
-  { name: "Instagram & Facebook", detail: "Meta Graph API — needs a Meta app, Page ID, Instagram Business ID and a long-lived access token." },
   { name: "LinkedIn Pages", detail: "Community Management API (requires LinkedIn approval). Until then, import the Page analytics export as CSV." },
   { name: "YouTube private analytics", detail: "Watch time, impressions and click-through rate live: YouTube Analytics API with OAuth (the channel owner or a manager approves once). Until then they come from the Studio export." },
 ];
@@ -98,25 +97,37 @@ export default function SettingsPage() {
             {(
               [
                 { key: "youtube", name: "YouTube", unit: "videos", detail: "Views, likes, comments and subscribers are live (subscribers are rounded by YouTube)." },
+                { key: "facebook", name: "Facebook", unit: "posts", detail: "Reactions, comments, shares, views, viewers, clicks and followers are live. Metrics Meta refuses show as N/A." },
+                { key: "instagram", name: "Instagram", unit: "posts", detail: "Likes, comments, shares, saves, views, reach, followers and audience demographics are live. Metrics Meta refuses show as N/A." },
                 { key: "ga4", name: "Google Analytics (GA4)", unit: "traffic rows", detail: "Social traffic from the last 90 days, with enquiries counted from thank-you pages." },
               ] as const
             ).map(({ key, name, unit, detail }) => {
-              const c = ds.live?.[key];
+              const l = ds.live?.[key];
               return (
                 <div key={key} className="flex gap-3 text-sm">
-                  <CircleDot className={c?.syncedAt && !c.error ? "mt-0.5 size-4 shrink-0 text-good" : "mt-0.5 size-4 shrink-0 text-muted"} />
+                  <CircleDot className={l?.syncedAt && !l.error ? "mt-0.5 size-4 shrink-0 text-good" : "mt-0.5 size-4 shrink-0 text-muted"} />
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2 font-medium">
                       {name}
-                      <Badge tone={c?.error ? "bad" : c?.syncedAt ? "good" : "neutral"}>{c?.error ? "Error" : c?.syncedAt ? "Connected" : "Not connected"}</Badge>
+                      <Badge tone={l?.error ? "bad" : l?.syncedAt ? "good" : "neutral"}>{l?.error ? "Error" : l?.syncedAt ? "Connected" : "Not connected"}</Badge>
                     </div>
-                    {c?.syncedAt && (
+                    {l?.syncedAt && (
                       <p className="text-muted">
-                        {fmtNum(c.items ?? 0)} {unit} · last synced {new Date(c.syncedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}. {detail}
+                        {fmtNum(l.items ?? 0)} {unit} · last synced {new Date(l.syncedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}. {detail}
                       </p>
                     )}
-                    {c?.error && <p role="alert" className="text-bad">{c.error}</p>}
-                    {c?.note && <p className="text-muted">{c.note}</p>}
+                    {l?.error && <p role="alert" className="text-bad">{l.error}</p>}
+                    {l?.warnings?.length ? (
+                      <details className="text-muted">
+                        <summary className="cursor-pointer">{l.warnings.length} metric{l.warnings.length > 1 ? "s" : ""} unavailable</summary>
+                        <ul className="mt-1 list-disc pl-5">
+                          {l.warnings.map((w) => (
+                            <li key={w}>{w}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                    {l?.note && <p className="text-muted">{l.note}</p>}
                   </div>
                 </div>
               );
