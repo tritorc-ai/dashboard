@@ -5,7 +5,8 @@ import type { AdRow } from "../types";
  * Server-only: the token comes from the environment and is sent in a header, never to the browser.
  *
  * Environment:
- *   META_ACCESS_TOKEN     a token with the `ads_read` permission (System User token, never expires)
+ *   META_ADS_ACCESS_TOKEN a token with the `ads_read` permission (System User token, never expires);
+ *                         falls back to META_ACCESS_TOKEN when not set
  *   META_AD_ACCOUNT_ID    the ad account, with or without the `act_` prefix
  *   META_GRAPH_VERSION    optional, default v23.0
  *
@@ -85,7 +86,7 @@ function leadsOf(actions: InsightRow["actions"]): number {
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export async function fetchMetaAds(force = false): Promise<MetaAdsResult> {
-  const token = process.env.META_ACCESS_TOKEN?.trim();
+  const token = process.env.META_ADS_ACCESS_TOKEN?.trim() || process.env.META_ACCESS_TOKEN?.trim();
   const rawId = process.env.META_AD_ACCOUNT_ID?.trim();
   if (!token || !rawId) return { configured: false };
   const account = rawId.startsWith("act_") ? rawId : `act_${rawId}`;
