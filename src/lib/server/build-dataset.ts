@@ -2,6 +2,7 @@ import type { Account, Dataset, FollowerPoint, Post } from "../types";
 import { loadFromExports } from "./load-exports";
 import { fetchGa4 } from "./ga4-api";
 import { fetchMeta, type MetaLive } from "./meta-api";
+import { fetchMetaAds } from "./meta-ads";
 import { fetchYouTube } from "./youtube-api";
 
 /**
@@ -13,7 +14,7 @@ export async function buildDataset(opts: { force?: boolean } = {}): Promise<Data
   if (!base) return null;
 
   const live: NonNullable<Dataset["live"]> = {};
-  const [yt, ga, meta] = await Promise.all([fetchYouTube(opts.force), fetchGa4(opts.force), fetchMeta(opts.force)]);
+  const [yt, ga, meta, ads] = await Promise.all([fetchYouTube(opts.force), fetchGa4(opts.force), fetchMeta(opts.force), fetchMetaAds(opts.force)]);
 
   // GA4 live traffic replaces the CSV rows for the dates it covers; older CSV rows stay
   if (!ga.configured) {
@@ -23,6 +24,16 @@ export async function buildDataset(opts: { force?: boolean } = {}): Promise<Data
     if (ga.data?.rows.length) {
       const { from, to, rows } = ga.data;
       base.web = base.web.filter((r) => r.date < from || r.date > to).concat(rows);
+    }
+  }
+
+  if (!ads.configured) {
+    live.metaAds = { note: "Not connected — add META_AD_ACCOUNT_ID and a token with the ads_read permission to .env.local" };
+  } else {
+    live.metaAds = { syncedAt: ads.data?.syncedAt, error: ads.error, items: ads.data?.rows.length };
+    if (ads.data) {
+      base.ads = ads.data.rows;
+      base.adsCurrency = ads.data.currency;
     }
   }
 

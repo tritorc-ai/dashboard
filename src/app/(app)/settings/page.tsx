@@ -99,6 +99,7 @@ export default function SettingsPage() {
                 { key: "youtube", name: "YouTube", unit: "videos", detail: "Views, likes, comments and subscribers are live (subscribers are rounded by YouTube)." },
                 { key: "facebook", name: "Facebook", unit: "posts", detail: "Reactions, comments, shares, views, viewers, clicks and followers are live. Metrics Meta refuses show as N/A." },
                 { key: "instagram", name: "Instagram", unit: "posts", detail: "Likes, comments, shares, saves, views, reach, followers and audience demographics are live. Metrics Meta refuses show as N/A." },
+                { key: "metaAds", name: "Meta Ads", unit: "daily campaign rows", detail: "Spend, impressions, clicks and leads per campaign for the last 90 days." },
                 { key: "ga4", name: "Google Analytics (GA4)", unit: "traffic rows", detail: "Social traffic from the last 90 days, with enquiries counted from thank-you pages." },
               ] as const
             ).map(({ key, name, unit, detail }) => {

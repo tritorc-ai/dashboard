@@ -114,6 +114,20 @@ export interface WebRow {
   keyEvents: number;
 }
 
+/** One day of one Meta ad campaign (Marketing API). Reach is per day: never sum it. */
+export interface AdRow {
+  date: string;
+  campaignId: string;
+  campaignName: string;
+  /** in the ad account's currency (Dataset.adsCurrency) */
+  spend: number;
+  impressions: number;
+  reach: number;
+  clicks: number;
+  linkClicks: number;
+  leads: number;
+}
+
 /** One bar in an audience breakdown (e.g. followers by country). */
 export interface AudienceRow {
   accountId: string;
@@ -134,6 +148,9 @@ export interface Dataset {
   targets: Target[];
   web: WebRow[];
   audience: AudienceRow[];
+  /** Daily Meta ad performance per campaign (live from the Marketing API; absent when not connected) */
+  ads?: AdRow[];
+  adsCurrency?: string;
   /** First/last day each account's reports cover (absent for sample data) */
   coverage?: Record<string, { from: string; to: string }>;
   /** Status of live API connections, by source */

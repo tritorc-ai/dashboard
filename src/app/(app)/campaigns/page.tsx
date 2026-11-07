@@ -7,12 +7,116 @@ import { PageLoading } from "@/components/loading";
 import { useData } from "@/components/data-provider";
 import { useDashboard } from "@/lib/use-dashboard";
 import { PRODUCTS } from "@/lib/sample-data";
-import { engagements, fmtMoney, fmtNum, groupBy, sum, sumOrNull } from "@/lib/metrics";
-import type { Post } from "@/lib/types";
+import { engagements, fmtMoney, fmtNum, fmtPct, groupBy, sum, sumOrNull, ymd } from "@/lib/metrics";
+import type { Dataset, Post } from "@/lib/types";
 
 type Metric = "engagements" | "leads" | "clicks";
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+
+/** Meta ads (Marketing API): spend, clicks, leads and cost per lead for the selected period. */
+function MetaAdsCard({ ds, from, to }: { ds: Dataset; from: string; to: string }) {
+  const money = (n: number | null) => {
+    if (n == null) return "—";
+    const cur = ds.adsCurrency ?? "INR";
+    try {
+      return new Intl.NumberFormat("en-IN", { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(n);
+    } catch {
+      return `${cur} ${Math.round(n).toLocaleString("en-IN")}`;
+    }
+  };
+
+  const rows = (ds.ads ?? []).filter((r) => r.date >= from && r.date <= to);
+  const status = ds.live?.metaAds;
+
+  const byCampaign = new Map<string, { name: string; spend: number; impressions: number; linkClicks: number; leads: number; days: Set<string> }>();
+  for (const r of rows) {
+    const c = byCampaign.get(r.campaignId) ?? { name: r.campaignName, spend: 0, impressions: 0, linkClicks: 0, leads: 0, days: new Set<string>() };
+    c.spend += r.spend;
+    c.impressions += r.impressions;
+    c.linkClicks += r.linkClicks;
+    c.leads += r.leads;
+    if (r.spend > 0) c.days.add(r.date);
+    byCampaign.set(r.campaignId, c);
+  }
+  const list = [...byCampaign.values()].sort((a, b) => b.spend - a.spend);
+  const total = list.reduce(
+    (t, c) => ({ spend: t.spend + c.spend, impressions: t.impressions + c.impressions, linkClicks: t.linkClicks + c.linkClicks, leads: t.leads + c.leads }),
+    { spend: 0, impressions: 0, linkClicks: 0, leads: 0 },
+  );
+  const ctr = (c: { impressions: number; linkClicks: number }) => (c.impressions ? (c.linkClicks / c.impressions) * 100 : null);
+  const cpl = (c: { spend: number; leads: number }) => (c.leads ? c.spend / c.leads : null);
+  const cpc = (c: { spend: number; linkClicks: number }) => (c.linkClicks ? c.spend / c.linkClicks : null);
+
+  const kpis = [
+    { label: "Ad spend", value: money(total.spend) },
+    { label: "Impressions", value: fmtNum(total.impressions) },
+    { label: "Link clicks", value: fmtNum(total.linkClicks) },
+    { label: "CTR", value: fmtPct(ctr(total)) },
+    { label: "Leads", value: fmtNum(total.leads) },
+    { label: "Cost per lead", value: money(cpl(total)) },
+  ];
+
+  return (
+    <Card className="mb-4 overflow-x-auto">
+      <CardHeader title="Meta ads" hint="Facebook + Instagram ads, live from Meta, for the selected period" />
+      {!ds.ads ? (
+        <Empty>
+          {status?.error ? (
+            <>Meta Ads could not load: {status.error}</>
+          ) : (
+            <>Meta Ads is not connected yet. Add META_AD_ACCOUNT_ID and an ads_read token in .env.local (see Settings).</>
+          )}
+        </Empty>
+      ) : (
+        <>
+          {status?.error && <p className="mb-3 rounded-lg bg-warn/15 px-3 py-2 text-xs text-warn">Showing the last good data. Latest refresh failed: {status.error}</p>}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {kpis.map((k) => (
+              <div key={k.label} className="rounded-lg bg-surface-2 p-3">
+                <div className="text-xs text-muted">{k.label}</div>
+                <div className="tabular mt-1 text-lg font-semibold">{k.value}</div>
+              </div>
+            ))}
+          </div>
+          {list.length ? (
+            <table className="mt-4 w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="py-2 pr-3 font-medium">Ad campaign</th>
+                  <th className="py-2 pr-3 text-right font-medium">Spend</th>
+                  <th className="py-2 pr-3 text-right font-medium">Impressions</th>
+                  <th className="py-2 pr-3 text-right font-medium">Link clicks</th>
+                  <th className="py-2 pr-3 text-right font-medium">CTR</th>
+                  <th className="py-2 pr-3 text-right font-medium">Cost / click</th>
+                  <th className="py-2 pr-3 text-right font-medium">Leads</th>
+                  <th className="py-2 text-right font-medium">Cost / lead</th>
+                </tr>
+              </thead>
+              <tbody className="tabular">
+                {list.map((c) => (
+                  <tr key={c.name} className="border-b border-line last:border-0 hover:bg-surface-2">
+                    <td className="py-2.5 pr-3 font-medium">{c.name}</td>
+                    <td className="py-2.5 pr-3 text-right">{money(c.spend)}</td>
+                    <td className="py-2.5 pr-3 text-right">{fmtNum(c.impressions)}</td>
+                    <td className="py-2.5 pr-3 text-right">{fmtNum(c.linkClicks)}</td>
+                    <td className="py-2.5 pr-3 text-right">{fmtPct(ctr(c))}</td>
+                    <td className="py-2.5 pr-3 text-right">{money(cpc(c))}</td>
+                    <td className="py-2.5 pr-3 text-right">{fmtNum(c.leads)}</td>
+                    <td className="py-2.5 text-right">{money(cpl(c))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="mt-3 text-sm text-muted">No ad spend in this period.</p>
+          )}
+          <p className="mt-2 text-xs text-muted">Reach is left out on purpose: it is counted per day and cannot be added across days or campaigns. Leads are Meta-reported (lead forms), separate from website enquiries in Google Analytics.</p>
+        </>
+      )}
+    </Card>
+  );
+}
 
 export default function CampaignsPage() {
   const { ds, d } = useDashboard();
@@ -94,6 +198,8 @@ export default function CampaignsPage() {
   return (
     <>
       <PageHeader title="Campaigns" description="Group posts into campaigns to see what a push actually delivered — from impressions down to qualified leads." />
+
+      <MetaAdsCard ds={ds} from={ymd(d.range.from)} to={ymd(d.range.to)} />
 
       <Card className="overflow-x-auto">
         <CardHeader title="Campaign performance" hint="Posts in the selected period" />
