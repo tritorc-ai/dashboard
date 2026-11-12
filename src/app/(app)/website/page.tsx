@@ -105,6 +105,9 @@ export default function WebsitePage() {
   const prevPaid = sessionsOf(prev.filter(isPaidSocial));
   const dates = ds.web.length ? [ds.web.reduce((m, r) => (r.date < m ? r.date : m), "9999"), ds.web.reduce((m, r) => (r.date > m ? r.date : m), "0000")] : null;
 
+  // only compare with the previous period when website data covers all of it (otherwise the % change is meaningless)
+  const comparable = !!filters.days && !!dates && dates[0] <= ymd(d.range.prevFrom);
+
   const onFile = async (f: File | undefined) => {
     setMsg("");
     setParsed(null);
@@ -165,12 +168,12 @@ export default function WebsitePage() {
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            <Kpi label="Social sessions" value={fmtNum(total)} change={delta(total, filters.days ? sessionsOf(prev) : null)} note="organic + paid" />
-            <Kpi label="From paid ads" value={fmtNum(paid)} change={delta(paid, filters.days ? prevPaid : null)} note={`${fmtPct(total ? (paid / total) * 100 : null, 1)} of social sessions`} />
-            <Kpi label="New users" value={fmtNum(sum(cur, (r) => r.newUsers))} change={delta(sum(cur, (r) => r.newUsers), filters.days ? sum(prev, (r) => r.newUsers) : null)} />
-            <Kpi label="Engagement rate" value={fmtPct(rate(cur), 1)} change={delta(rate(cur), filters.days ? rate(prev) : null)} note="engaged sessions ÷ sessions" />
-            <Kpi label="Avg engagement time" value={fmtSecs(avgSecs(cur))} change={delta(avgSecs(cur), filters.days ? avgSecs(prev) : null)} note="per session" />
-            <Kpi label="Key events (enquiries)" value={fmtNum(sum(cur, (r) => r.keyEvents))} change={delta(sum(cur, (r) => r.keyEvents), filters.days ? sum(prev, (r) => r.keyEvents) : null)} note={`${fmtNum(sum(cur.filter((r) => !isPaidSocial(r)), (r) => r.keyEvents))} from organic posts`} />
+            <Kpi label="Social sessions" value={fmtNum(total)} change={delta(total, comparable ? sessionsOf(prev) : null)} note="organic + paid" />
+            <Kpi label="From paid ads" value={fmtNum(paid)} change={delta(paid, comparable ? prevPaid : null)} note={`${fmtPct(total ? (paid / total) * 100 : null, 1)} of social sessions`} />
+            <Kpi label="New users" value={fmtNum(sum(cur, (r) => r.newUsers))} change={delta(sum(cur, (r) => r.newUsers), comparable ? sum(prev, (r) => r.newUsers) : null)} />
+            <Kpi label="Engagement rate" value={fmtPct(rate(cur), 1)} change={delta(rate(cur), comparable ? rate(prev) : null)} note="engaged sessions ÷ sessions" />
+            <Kpi label="Avg engagement time" value={fmtSecs(avgSecs(cur))} change={delta(avgSecs(cur), comparable ? avgSecs(prev) : null)} note="per session" />
+            <Kpi label="Key events (enquiries)" value={fmtNum(sum(cur, (r) => r.keyEvents))} change={delta(sum(cur, (r) => r.keyEvents), comparable ? sum(prev, (r) => r.keyEvents) : null)} note={`${fmtNum(sum(cur.filter((r) => !isPaidSocial(r)), (r) => r.keyEvents))} from organic posts`} />
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-3">
